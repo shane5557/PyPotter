@@ -1,3 +1,9 @@
+###
+#Importan to play with the threshold value. If your wand isnt showing in the output or is sparadic be sure to lower the threshhold. Mine is a 20
+#Also had to add cv2.waitKey(1) for each window to keep the opencv output window from hanging. 
+#Finally if running the pi noIR camera be sure to use mjpeg and set frame rate to 42 fps and a lower resolution. Since it was trained at 42fps the patter may not match.
+###
+
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -77,23 +83,6 @@ if IsShowOutputWindows:
     IsShowBackgroundRemoved = True
     IsShowThreshold = True
     IsShowOutput = True
-
-# Create Windows
-if (IsShowOriginal):
-    cv2.namedWindow("Original")
-    cv2.moveWindow("Original", 0, 0)
-
-if (IsShowBackgroundRemoved):
-    cv2.namedWindow("BackgroundRemoved")
-    cv2.moveWindow("BackgroundRemoved", 640, 0)
-
-if (IsShowThreshold):
-    cv2.namedWindow("Threshold")
-    cv2.moveWindow("Threshold", 0, 480+30)
-
-if (IsShowOutput):
-    cv2.namedWindow("Output")
-    cv2.moveWindow("Output", 640, 480+30)
 
 # Init Global Variables
 IsNewFrame = False
@@ -195,13 +184,15 @@ def PerformSpell(spell):
     Make the desired Home Assistant REST API call based on the spell
     """
     if (spell=="incendio"):
-        hass.TriggerAutomation("automation.wand_incendio")
+        hass.TurnOnLight("light.island3","red")
     elif (spell=="aguamenti"):
         hass.TriggerAutomation("automation.wand_aguamenti")
     elif (spell=="alohomora"):
         hass.TriggerAutomation("automation.wand_alohomora")
     elif (spell=="silencio"):
         hass.TriggerAutomation("automation.wand_silencio")
+    #elif (spell=="mistakes"):
+        #hass.TurnOnLight("light.living_room_back_left","green")
     elif (spell=="specialis_revelio"):
         hass.TriggerAutomation("automation.wand_specialis_revelio")
     elif (spell=="revelio"):
@@ -226,10 +217,10 @@ def CheckForPattern(wandTracks, exampleFrame):
     prevTrack = wandTracks[0]
 
     for track in wandTracks:
-        x1 = prevTrack[0]
-        x2 = track[0]
-        y1 = prevTrack[1]
-        y2 = track[1]
+        x1 = int(prevTrack[0])
+        x2 = int(track[0])
+        y1 = int(prevTrack[1])
+        y2 = int(track[1])
 
         # Calculate the distance
         distance = math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
@@ -267,6 +258,9 @@ def CheckForPattern(wandTracks, exampleFrame):
             wandPathFrameWithText = AddIterationsPerSecText(wand_path_frame, outputCps.countsPerSec())
             cv2.putText(wandPathFrameWithText, "Last Spell: " + LastSpell, (10, 400), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255))
             cv2.imshow("Output", wandPathFrameWithText)
+            #print(wandPathFrameWithText)
+            cv2.waitKey(1)
+            
 
     return wandTracks
 
@@ -277,7 +271,7 @@ def RemoveBackground():
     global frame, frame_no_background, IsNewFrame, IsNewFrameNoBackground
 
     fgbg = cv2.createBackgroundSubtractorMOG2()
-    t = threading.currentThread()
+    t = threading.current_thread()
     while getattr(t, "do_run", True):
         if (IsNewFrame):
             IsNewFrame = False
@@ -292,6 +286,7 @@ def RemoveBackground():
             if (IsShowBackgroundRemoved):
                     frameNoBackgroundWithCounts = AddIterationsPerSecText(frame_no_background.copy(), noBackgroundCps.countsPerSec())
                     cv2.imshow("BackgroundRemoved", frameNoBackgroundWithCounts)
+                    cv2.waitKey(1)
         else:
             time.sleep(0.001)
 
@@ -301,8 +296,8 @@ def CalculateThreshold():
     """
     global frame, frame_no_background, frameThresh, IsNewFrame, IsNewFrameNoBackground, IsNewFrameThreshold
 
-    t = threading.currentThread()
-    thresholdValue = 240
+    t = threading.current_thread()
+    thresholdValue = 20
     while getattr(t, "do_run", True):
         if (IsRemoveBackground and IsNewFrameNoBackground) or (not IsRemoveBackground and IsNewFrame):
             if IsRemoveBackground:
@@ -319,6 +314,7 @@ def CalculateThreshold():
             if (IsShowThreshold):
                     frameThreshWithCounts = AddIterationsPerSecText(frameThresh.copy(), thresholdCps.countsPerSec())
                     cv2.imshow("Threshold", frameThreshWithCounts)
+                    cv2.waitKey(1)
         else:
             time.sleep(0.001)
 
@@ -330,7 +326,7 @@ def ProcessData():
 
     oldFrameThresh = None
     trackedPoints = None
-    t = threading.currentThread()
+    t = threading.current_thread()
 
     while getattr(t, "do_run", True):
         if (IsNewFrameThreshold):
@@ -357,13 +353,14 @@ def ProcessData():
                     # draw the tracks
                     for i,(new,old) in enumerate(zip(good_new,good_old)):
                         a,b = new.ravel()
+                        #################################print(a,b,type(a),type(b))
                         c,d = old.ravel()
            
                         wandTracks.append([a, b])
            
                     # Update which points are tracked
                     trackedPoints = good_new.copy().reshape(-1,1,2)
-           
+
                     wandTracks = CheckForPattern(wandTracks, localFrameThresh)
            
                 else:
@@ -444,6 +441,8 @@ while True:
         if (IsShowOriginal):
             frameWithCounts = AddIterationsPerSecText(frame.copy(), originalCps.countsPerSec())
             cv2.imshow("Original", frameWithCounts)
+            
+            
         
     elif not ret:
         # If an error occurred, try initializing the video capture again
